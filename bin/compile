@@ -29,6 +29,13 @@ BUILDPACK_DIR=$(cd -P -- "$(dirname -- "$0")" && cd .. && pwd -P)
 APP_CHECKOUT_DIR=$1
 # Where the Meteor app source code is located
 APP_SOURCE_DIR="$APP_CHECKOUT_DIR"
+
+echo "-----> Installing utilities"
+bash "$BUILDPACK_DIR/bin/install_jq"
+"$BUILDPACK_DIR/jq" --version
+echo "-----> Finished Installing utilities"
+
+
 # The Iron scaffolding tool (https://github.com/iron-meteor/iron-cli) place the
 # Meteor app in /app/ instead of in the root. So let's try the /app/ folder if
 # there is no Meteor app in the root.
@@ -59,6 +66,8 @@ export npm_config_prefix="$COMPILE_DIR"
 export CPATH="$COMPILE_DIR"/include
 export CPPPATH="$CPATH"
 
+echo $(echo "-----> Using node version: ") $(node --version)
+
 #
 # Install meteor
 #
@@ -69,7 +78,7 @@ METEOR="$METEOR_DIR/.meteor/meteor" # The meteor binary.
 #
 # Build the meteor app!
 #
-echo "-----> Bundling bundle"
+echo "-----> Setting Up Bundle Build"
 cd $APP_SOURCE_DIR
 
 # Now on to bundling. Don't put the bundle in $APP_CHECKOUT_DIR, or it will
@@ -79,7 +88,8 @@ BUNDLE_DEST=`mktemp -d "$BUILDPACK_DIR/build-XXXX"`
 # Temporary hack to address meteor failing to bundle if mobile targets are
 # included but server URL is not (issue #2).  Remove mobile targets. This
 # should be no-op for any builds that don't have mobile targets.
-HOME=$METEOR_DIR $METEOR remove-platform ios android
+HOME=$METEOR_DIR
+#$METEOR remove-platform ios android
 # </hack>
 
 # <hack issue="https://github.com/meteor/meteor/issues/2796>
@@ -97,9 +107,21 @@ HOME=$METEOR_DIR $METEOR build --directory $BUNDLE_DEST
 mv $BUNDLE_DEST/bundle "$COMPILE_DIR/app"
 rmdir $BUNDLE_DEST
 
+echo "-----> Building non-metorized npm modules"
+# npm install
+
+"$BUILDPACK_DIR/jq" -s '.[0] * .[1]' "$COMPILE_DIR/app/programs/server/package.json" ./package.json > "$COMPILE_DIR/app/programs/server/package-new.json"
+
+mv "$COMPILE_DIR/app/programs/server/package.json" "$COMPILE_DIR/app/programs/server/package-old.json"
+
+mv "$COMPILE_DIR/app/programs/server/package-new.json" "$COMPILE_DIR/app/programs/server/package.json"
+
+echo "-----> Building bundle"
+
 # If we use npm, run npm install.
 if [ -e "$COMPILE_DIR"/app/programs/server/package.json ]; then
-  cd "$COMPILE_DIR"/app/programs/server && npm install
+  echo "-----> Installing npm packages"
+  cd "$COMPILE_DIR"/app/programs/server && npm update
 fi
 
 #

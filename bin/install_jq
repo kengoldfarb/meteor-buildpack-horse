@@ -1,0 +1,24 @@
+#!/usr/bin/env bash
+
+set -e            # fail fast
+set -o pipefail   # don't ignore exit codes when piping output
+set -x          # enable debugging
+
+build_dir=.
+#cache_dir=$2
+#env_dir=$3
+
+bp_dir=$(cd $(dirname $0); cd ..; pwd)
+
+# Load some convenience functions like status(), echo(), and indent()
+source $bp_dir/bin/common.sh
+
+mkdir -p $build_dir/vendor/jq/bin
+
+# Download jq
+status "Downloading and jq"
+jq_url="https://s3.amazonaws.com/jq-heroku/jq.tar.gz"
+curl $jq_url -s -o - | tar xzf - -C $build_dir
+
+pwd
+#./jq
